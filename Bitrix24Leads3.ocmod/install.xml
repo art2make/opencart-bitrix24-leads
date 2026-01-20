@@ -1,0 +1,342 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+    <name>Bitrix24</name>
+    <code>Bitrix24Leads</code>
+    <version>2.3</version>
+    <author>a2m</author>
+
+    <file path="catalog/controller/common/header.php">
+        <operation>
+            <search><![CDATA[class ControllerCommonHeader extends Controller {]]></search>
+            <add position="after">
+                <![CDATA[
+                public function decryptData($encrypted_data) {
+                    $key = $this->getMasterKey();
+                    $data = base64_decode($encrypted_data);
+                    $iv_length = 16;
+                    $iv = substr($data, 0, $iv_length);
+                    $encrypted = substr($data, $iv_length);
+                    return openssl_decrypt($encrypted, 'aes-256-cbc', $key, 0, $iv);
+                }
+
+                private function getMasterKey() {
+                    return $this->config->get('bitrix24_master_key');
+                }
+                ]]>
+            </add>
+        </operation>
+    </file>
+
+    <file path="catalog/model/checkout/order.php">
+        <operation>
+            <search><![CDATA[return $order_id;]]></search>
+            <add position="before">
+                <![CDATA[
+				if ($this->config->get('bitrix24_order_status')) {
+					$bitrix24login = $this->config->get('bitrix24_login');
+
+					$bitrix24password = $this->load->controller('common/header/decryptData', $this->config->get('bitrix24_password'));
+
+					$bitrix24domen = $this->config->get('bitrix24_domain');
+
+					$bitrix24products = "<h2>Информация о товарах:</h2><br/>";
+					foreach ($data['products'] as $product) {
+						$bitrix24option = empty($product['option']) ? "" : "<br/><br/><b>Опции:</b>";
+						$bitrix24products .= 
+						"<b>Название:</b> ".$product['name']." (<a target='_blank' href='http://".$_SERVER['HTTP_HOST']."/index.php?route=product/product&product_id=".$product['product_id']."'>Ссылка</a>)".
+						"<br/><b>Количество:</b> ".$product['quantity']." шт.".
+						"<br/><b>Цена:</b> ".$product['price']." руб.".
+						"<br/><b>Сумма:</b> ".$product['total']." руб.".
+						$bitrix24option;
+
+						foreach ($product['option'] as $option) {
+							if ($option['type'] == 'checkbox') {
+								$bitrix24products .= "<br/>-- Выбрано: ".$option['name'];
+							} else {
+								$bitrix24products .= "<br/>-- ".$option['name'].": ".$option['value'];
+							}
+						}
+
+						if ($product != end($data['products'])) {
+							$bitrix24products .= "<br/><br/>------------------------------------------------<br/><br/>";
+						} else {
+							$bitrix24products .= "<br/><br/>";
+						}
+					}
+
+					$template = $this->config->get('bitrix24_order_template');
+
+					$placeholders = [
+						'{{name}}' => $data['firstname'] . " " . $data['lastname'],
+						'{{email}}' => $data['email'],
+						'{{phone}}' => $data['telephone'],
+						'{{address}}' => $data['shipping_address_1'],
+						'{{total}}' => $data['total'],
+						'{{order_id}}' => $order_id,
+						'{{comment}}' => $data['comment']
+					];
+
+					foreach ($placeholders as $placeholder => $value) {
+					   $template = str_replace($placeholder, html_entity_decode($value), $template);
+					}
+
+					$bitrix24data = htmlspecialchars_decode("<h2>Информация о клиенте:</h2><br/>" . $template);
+
+					$bitrix24GetData = array(
+					  'LOGIN' => $bitrix24login,
+					  'PASSWORD' => $bitrix24password,
+					  'TITLE' => "Заказ №".$order_id ." ". $this->config->get('config_name'),
+					  'NAME' => $data['firstname'],
+					  'LAST_NAME' => $data['lastname'],
+					  'PHONE_OTHER' => $data['telephone'],
+					  'OPPORTUNITY' => $data['total'],
+					  'SOURCE_ID' => 'WEB',
+					  'SOURCE_DESCRIPTION' => $data['store_url'],
+					  'COMMENTS' => $bitrix24products.$bitrix24data
+				  );
+
+				  $bitrix24GetData = http_build_query($bitrix24GetData);
+				  $curl_handle = curl_init();
+				  curl_setopt($curl_handle, CURLOPT_URL, "https://" . $bitrix24domen . "/crm/configs/import/lead.php?" . $bitrix24GetData);
+				  curl_setopt($curl_handle, CURLOPT_CONNECTTIMEOUT, 2);
+				  curl_setopt($curl_handle, CURLOPT_RETURNTRANSFER, 1);
+				  curl_setopt($curl_handle, CURLOPT_USERAGENT, 'Your application name');
+				  $query = curl_exec($curl_handle);
+				  curl_close($curl_handle);
+
+				  $this->db->query("INSERT INTO `" . DB_PREFIX . "bitrix24_message_log` 
+								  SET `message_type` = 'Заказ', 
+									  `message_data` = '" . $this->db->escape($bitrix24products . $bitrix24data) . "', 
+									  `date_sent` = NOW()");
+				}
+				]]>
+            </add>
+        </operation>
+    </file>
+
+    <file path="catalog/controller/extension/module/callback.php">
+        <operation>
+            <search><![CDATA[$mail->send();]]></search>
+            <add position="after">
+                <![CDATA[
+                if ($this->config->get('bitrix24_callback_status')) {
+                    $bitrix24login = $this->config->get('bitrix24_login');
+                    
+                    $bitrix24password = $this->load->controller('common/header/decryptData', $this->config->get('bitrix24_password'));
+
+                    $bitrix24domen = $this->config->get('bitrix24_domain');
+
+                    $bitrix24GetData = array(
+                        'LOGIN' => $bitrix24login,
+                        'PASSWORD' => $bitrix24password,
+                        'TITLE' => $this->language->get('subject') ." ". $this->config->get('config_name'),
+                        'NAME' => $data['name'],
+                        'PHONE_OTHER' => $data['phone'],
+                        'SOURCE_ID' => 'WEB',
+                        'COMMENTS' => $data['comment']
+                    );
+
+                    $bitrix24GetData = http_build_query($bitrix24GetData);
+                    $curl_handle=curl_init();
+                    curl_setopt($curl_handle, CURLOPT_URL,"https://".$bitrix24domen."/crm/configs/import/lead.php?".$bitrix24GetData);
+                    curl_setopt($curl_handle, CURLOPT_CONNECTTIMEOUT, 2);
+                    curl_setopt($curl_handle, CURLOPT_RETURNTRANSFER, 1);
+                    curl_setopt($curl_handle, CURLOPT_USERAGENT, 'Your application name');
+                    $query = curl_exec($curl_handle);
+                    curl_close($curl_handle);
+
+                    $this->db->query("INSERT INTO `" . DB_PREFIX . "bitrix24_message_log` 
+                                    SET `message_type` = 'Обратный звонок', 
+                                        `message_data` = '" . $this->db->escape($data['comment']) . "', 
+                                        `date_sent` = NOW()");
+                }
+                ]]>
+            </add>
+        </operation>
+    </file>
+
+    <file path="catalog/controller/information/contact.php">
+        <operation>
+            <search><![CDATA[$mail->send();]]></search>
+            <add position="after">
+                <![CDATA[
+                if ($this->config->get('bitrix24_contacts_status')) {
+                    $bitrix24login = $this->config->get('bitrix24_login');
+                    
+                    $bitrix24password = $this->load->controller('common/header/decryptData', $this->config->get('bitrix24_password'));
+
+                    $bitrix24domen = $this->config->get('bitrix24_domain');
+
+                    $bitrix24GetData = array(
+                        'LOGIN' => $bitrix24login,
+                        'PASSWORD' => $bitrix24password,
+                        'TITLE' => "Написать нам ". $this->config->get('config_name'),
+                        'NAME' => html_entity_decode($this->request->post['name'], ENT_QUOTES, 'UTF-8'),
+                        'PHONE_OTHER' => $this->request->post['telephone'],
+                        'EMAIL_OTHER' => $this->request->post['email'],
+                        'SOURCE_ID' => 'WEB',
+                        'COMMENTS' => $this->request->post['enquiry']
+                    );
+
+                    $bitrix24GetData = http_build_query($bitrix24GetData);
+                    $curl_handle=curl_init();
+                    curl_setopt($curl_handle, CURLOPT_URL,"https://".$bitrix24domen."/crm/configs/import/lead.php?".$bitrix24GetData);
+                    curl_setopt($curl_handle, CURLOPT_CONNECTTIMEOUT, 2);
+                    curl_setopt($curl_handle, CURLOPT_RETURNTRANSFER, 1);
+                    curl_setopt($curl_handle, CURLOPT_USERAGENT, 'Your application name');
+                    $query = curl_exec($curl_handle);
+                    curl_close($curl_handle);
+
+                    $this->db->query("INSERT INTO `" . DB_PREFIX . "bitrix24_message_log` 
+                                    SET `message_type` = 'Контактная форма', 
+                                        `message_data` = '" . $this->db->escape($this->request->post['enquiry']) . "', 
+                                        `date_sent` = NOW()");
+                }
+                ]]>
+            </add>
+        </operation>
+    </file>
+
+    <file path="catalog/controller/extension/module/product_questions.php">
+        <operation>
+            <search><![CDATA[$mail->send();]]></search>
+            <add position="after">
+                <![CDATA[
+                if ($this->config->get('bitrix24_questions_status')) {
+                    $bitrix24login = $this->config->get('bitrix24_login');
+                    
+                    $bitrix24password = $this->load->controller('common/header/decryptData', $this->config->get('bitrix24_password'));
+
+                    $bitrix24domen = $this->config->get('bitrix24_domain');
+
+                    $bitrix24GetData = array(
+                        'LOGIN' => $bitrix24login,
+                        'PASSWORD' => $bitrix24password,
+                        'TITLE' => "Написать нам ". $this->config->get('config_name'),
+                        'NAME' => html_entity_decode($this->request->post['name'], ENT_QUOTES, 'UTF-8'),
+                        'PHONE_OTHER' => $this->request->post['telephone'],
+                        'EMAIL_OTHER' => $this->request->post['email'],
+                        'SOURCE_ID' => 'WEB',
+                        'COMMENTS' => $this->request->post['enquiry']
+                    );
+
+                    $bitrix24GetData = http_build_query($bitrix24GetData);
+                    $curl_handle=curl_init();
+                    curl_setopt($curl_handle, CURLOPT_URL,"https://".$bitrix24domen."/crm/configs/import/lead.php?".$bitrix24GetData);
+                    curl_setopt($curl_handle, CURLOPT_CONNECTTIMEOUT, 2);
+                    curl_setopt($curl_handle, CURLOPT_RETURNTRANSFER, 1);
+                    curl_setopt($curl_handle, CURLOPT_USERAGENT, 'Your application name');
+                    $query = curl_exec($curl_handle);
+                    curl_close($curl_handle);
+
+                    $this->db->query("INSERT INTO `" . DB_PREFIX . "bitrix24_message_log` 
+                                    SET `message_type` = 'Вопрос о продукте', 
+                                        `message_data` = '" . $this->db->escape($this->request->post['enquiry']) . "', 
+                                        `date_sent` = NOW()");
+                }
+                ]]>
+            </add>
+        </operation>
+    </file>
+
+    <!-- UNI_REQUEST -->
+    <file path="catalog/controller/extension/module/uni_request.php">
+        <operation>
+            <search><![CDATA[$this->model_extension_module_uni_request->addAttempt($customer_ip);]]></search>
+            <add position="after">
+                <![CDATA[
+                // Отправка в Bitrix24 для всех форм uni_request
+                if ($this->config->get('bitrix24_unirequest_status')) {
+                    $bitrix24login = $this->config->get('bitrix24_login');
+                    
+                    $bitrix24password = $this->load->controller('common/header/decryptData', $this->config->get('bitrix24_password'));
+
+                    $bitrix24domen = $this->config->get('bitrix24_domain');
+                    
+                    // Определение типа формы для лога
+                    $form_types = [
+                        'callback' => 'Обратный звонок (UniRequest)',
+                        'notify' => 'Уведомление о поступлении',
+                        'question' => 'Вопрос о товаре (UniRequest)'
+                    ];
+                    
+                    // Для кастомных форм
+                    if (strpos($form_name, 'custom-form-') === 0) {
+                        $message_type = 'Кастомная форма ' . str_replace('custom-form-', '', $form_name);
+                    } else {
+                        $message_type = isset($form_types[$form_name]) ? $form_types[$form_name] : 'Форма UniRequest';
+                    }
+                    
+                    // SOURCE_ID в зависимости от типа формы
+                    $source_id = 'WEB';
+                    //if ($form_name == 'notify') {
+                    //    $source_id = 'Уведомление о поступлении';
+                    //} elseif ($form_name == 'question') {
+                    //    $source_id = 'Вопрос о товаре';
+                    //} elseif (strpos($form_name, 'custom-form-') === 0) {
+                    //    $source_id = 'Кастомная форма';
+                    //}
+                    
+                    // коммент с полной информацией
+                    $comments = "<h2>Информация о форме:</h2><br/>";
+                    $comments .= "<b>Тип формы:</b> " . $type . "<br/>";
+                    $comments .= "<b>Название формы:</b> " . $form_name . "<br/>";
+                    $comments .= "<b>Имя:</b> " . $customer_name . "<br/>";
+                    $comments .= "<b>Телефон:</b> " . $customer_phone . "<br/>";
+                    $comments .= "<b>Email:</b> " . $customer_mail . "<br/>";
+                    
+                    if ($customer_comment) {
+                        $comments .= "<b>Комментарий:</b> " . $customer_comment . "<br/>";
+                    }
+                    
+                    if ($product_id && $product_name) {
+                        $comments .= "<b>Товар:</b> " . $product_name . " (ID: " . $product_id . ")<br/>";
+                    }
+                    
+                    if ($location) {
+                        $comments .= "<b>Страница отправки:</b> " . $location . "<br/>";
+                    }
+                    
+                    $comments .= "<b>IP адрес:</b> " . $customer_ip . "<br/>";
+                    
+                    // Определение заголовка для лида
+                    $lead_title = $type ? $type . " - " . $this->config->get('config_name') : "Форма UniRequest - " . $this->config->get('config_name');
+                    
+                    $bitrix24GetData = array(
+                        'LOGIN' => $bitrix24login,
+                        'PASSWORD' => $bitrix24password,
+                        'TITLE' => $lead_title,
+                        'NAME' => $customer_name,
+                        'PHONE_OTHER' => $customer_phone,
+                        'EMAIL_OTHER' => $customer_mail,
+                        'SOURCE_ID' => $source_id,
+                        'SOURCE_DESCRIPTION' => $location ?: $this->config->get('config_url'),
+                        'COMMENTS' => $comments
+                    );
+                    
+                    // Добавление поля REASON для callback формы, если оно есть
+                    if ($form_name == 'callback' && isset($reason) && $reason) {
+                        $bitrix24GetData['UF_CRM_1588243541'] = $reason; // Пример пользовательского поля, можно настроить
+                    }
+
+                    $bitrix24GetData = http_build_query($bitrix24GetData);
+                    $curl_handle = curl_init();
+                    curl_setopt($curl_handle, CURLOPT_URL, "https://" . $bitrix24domen . "/crm/configs/import/lead.php?" . $bitrix24GetData);
+                    curl_setopt($curl_handle, CURLOPT_CONNECTTIMEOUT, 10);
+                    curl_setopt($curl_handle, CURLOPT_RETURNTRANSFER, 1);
+                    curl_setopt($curl_handle, CURLOPT_USERAGENT, 'OpenCart UniRequest Module');
+                    curl_setopt($curl_handle, CURLOPT_SSL_VERIFYPEER, false);
+                    curl_setopt($curl_handle, CURLOPT_SSL_VERIFYHOST, false);
+                    $query = curl_exec($curl_handle);
+                    curl_close($curl_handle);
+
+                    $this->db->query("INSERT INTO `" . DB_PREFIX . "bitrix24_message_log` 
+                                    SET `message_type` = '" . $this->db->escape($message_type) . "', 
+                                        `message_data` = '" . $this->db->escape($comments) . "', 
+                                        `date_sent` = NOW()");
+                }
+                ]]>
+            </add>
+        </operation>
+    </file>
+</modification>

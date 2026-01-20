@@ -1,0 +1,259 @@
+{{ header }}{{ column_left }}
+<div id="content">
+  <div class="page-header">
+    <div class="container-fluid">
+      <div class="pull-right">
+        <button type="submit" form="form-module" data-toggle="tooltip" title="{{ button_save }}" class="btn btn-primary"><i class="fa fa-save"></i></button>
+        <a href="{{ cancel }}" data-toggle="tooltip" title="{{ button_cancel }}" class="btn btn-default"><i class="fa fa-reply"></i></a></div>
+      <h1>{{ heading_title }}</h1>
+      <ul class="breadcrumb">
+        {% for breadcrumb in breadcrumbs %}
+        <li><a href="{{ breadcrumb.href }}">{{ breadcrumb.text }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+   <form action="{{ action }}" method="post" enctype="multipart/form-data" id="form-module" class="form-horizontal">
+    <ul class="nav nav-tabs">
+      <li class="active"><a href="#tab-status" data-toggle="tab">{{ text_status }}</a></li>
+      <li><a href="#tab-forms" data-toggle="tab">{{ text_forms }}</a></li>
+      <li><a href="#tab-logs" data-toggle="tab">{{ text_logs }}</a></li>
+      <li><a href="#tab-clear" data-toggle="tab">{{ text_clear_logs }}</a></li>
+      <li><a href="#tab-accesses" data-toggle="tab">{{ text_accesses }}</a></li>
+    </ul>
+    <div class="tab-content">
+      <div class="tab-pane active" id="tab-status">
+       
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-status">{{ entry_status }}</label>
+            <div class="col-sm-10">
+              <select name="bitrix24_status" id="input-status" class="form-control">
+                {% if bitrix24_status %}
+                <option value="1" selected="selected">{{ text_enabled }}</option>
+                <option value="0">{{ text_disabled }}</option>
+                {% else %}
+                <option value="1">{{ text_enabled }}</option>
+                <option value="0" selected="selected">{{ text_disabled }}</option>
+                {% endif %}
+              </select>
+            </div>
+          </div>
+      </div>
+
+      <div class="tab-pane" id="tab-forms">
+          <div class="form-group">
+            <label class="col-sm-2 control-label">{{ text_orders }}</label>
+            <div class="col-sm-10">
+              <select name="bitrix24_order_status" id="order-status" class="form-control">
+                <option value="1" {% if bitrix24_order_status %} selected {% endif %}>{{ text_enabled }}</option>
+                <option value="0" {% if not bitrix24_order_status %} selected {% endif %}>{{ text_disabled }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group" id="template-group">
+            <label class="col-sm-2 control-label">{{ text_template }}</label>
+            <div class="col-sm-10">
+              <textarea name="bitrix24_order_template" id="input-template" data-toggle="summernote" class="form-control">{{ bitrix24_order_template }}</textarea>
+              <small class="text-muted">{{ text_template_help }}</small>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="col-sm-2 control-label">{{ text_callback }}</label>
+            <div class="col-sm-10">
+              <select name="bitrix24_callback_status" class="form-control">
+                <option value="1" {% if bitrix24_callback_status %} selected {% endif %}>{{ text_enabled }}</option>
+                <option value="0" {% if not bitrix24_callback_status %} selected {% endif %}>{{ text_disabled }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="col-sm-2 control-label">{{ text_contacts }}</label>
+            <div class="col-sm-10">
+              <select name="bitrix24_contacts_status" class="form-control">
+                <option value="1" {% if bitrix24_contacts_status %} selected {% endif %}>{{ text_enabled }}</option>
+                <option value="0" {% if not bitrix24_contacts_status %} selected {% endif %}>{{ text_disabled }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="col-sm-2 control-label">{{ text_questions }}</label>
+            <div class="col-sm-10">
+              <select name="bitrix24_questions_status" class="form-control">
+                <option value="1" {% if bitrix24_questions_status %} selected {% endif %}>{{ text_enabled }}</option>
+                <option value="0" {% if not bitrix24_questions_status %} selected {% endif %}>{{ text_disabled }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="col-sm-2 control-label">{{ text_unirequest }}</label>
+            <div class="col-sm-10">
+              <select name="bitrix24_unirequest_status" class="form-control">
+                <option value="1" {% if bitrix24_unirequest_status %} selected {% endif %}>{{ text_enabled }}</option>
+                <option value="0" {% if not bitrix24_unirequest_status %} selected {% endif %}>{{ text_disabled }}</option>
+              </select>
+              <small class="text-muted">Отправка данных из всех форм UniRequest (callback, notify, question, кастомные формы)</small>
+            </div>
+          </div>
+		  <div class="form-group">
+			<label class="col-sm-2 control-label">{{ text_exclude_customer_group }}</label>
+			<div class="col-sm-10">
+				<select name="bitrix24_exclude_customer_group_id" class="form-control">
+				<option value="0">{{ text_none }}</option>
+					{% for customer_group in customer_groups %}
+				<option value="{{ customer_group.customer_group_id }}" 
+                    {% if bitrix24_exclude_customer_group_id == customer_group.customer_group_id %} selected {% endif %}>
+					{{ customer_group.name }}
+				</option>
+				{% endfor %}
+        </select>
+        <small class="text-muted">{{ text_exclude_customer_group_help }}</small>
+    </div>
+</div>
+      </div>
+
+      <div class="tab-pane" id="tab-logs">
+        <div class="panel panel-default">
+          <div class="panel-heading">
+            <h3 class="panel-title"><i class="fa fa-list"></i> {{ text_logs }}</h3>
+          </div>
+          <div class="panel-body">
+            {% if logs %}
+            <table class="table table-bordered">
+              <thead>
+                <tr>
+                  <th>{{ log_id }}</th>
+                  <th>{{ log_message_type }}</th>
+                  <th>{{ log_date_sent }}</th>
+                  <th>{{ log_message_data }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for log in logs %}
+                <tr>
+                  <td>{{ log.id }}</td>
+                  <td>{{ log.message_type }}</td>
+                  <td>{{ log.date_sent }}</td>
+                  <td>{{ log.message_data }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% else %}
+            <p>{{ log_no_data }}</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-pane" id="tab-clear">
+        <div class="panel panel-default">
+          <div class="panel-heading">
+            <h3 class="panel-title"><i class="fa fa-trash"></i> {{ text_clear_logs }}</h3>
+          </div>
+          <div class="panel-body">
+              <div class="form-group">
+                <label for="log-date">{{ clear_logs_by_date }}</label>
+                <input type="date" name="log_date" id="log-date" class="form-control">
+              </div>
+              <button type="button" id="delete-all-logs-button" class="btn btn-danger">{{ button_clear_all_logs }}</button>
+              <button type="button" id="delete-logs-by-date-button" class="btn btn-danger">{{ button_clear_logs_by_date }}</button>
+          </div>
+        </div>
+      </div>
+
+        <div class="tab-pane" id="tab-accesses">
+            <div class="tab-pane" id="tab-access">
+                <div class="form-group">
+                    <label class="col-sm-2 control-label" for="input-bitrix24-login">{{ text_bitrix24_login }}</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="bitrix24_login" value="{{ bitrix24_login }}" id="input-bitrix24-login" class="form-control" placeholder="{{ placeholder_bitrix24_login }}">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label" for="input-bitrix24-password">{{ text_bitrix24_password }}</label>
+                    <div class="col-sm-10">
+                        <input type="password" name="bitrix24_password" value="{{ bitrix24_password }}" id="input-bitrix24-password" class="form-control" placeholder="{{ placeholder_bitrix24_password }}">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label" for="input-bitrix24-domain">{{ text_bitrix24_domain }}</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="bitrix24_domain" value="{{ bitrix24_domain }}" id="input-bitrix24-domain" class="form-control" placeholder="{{ placeholder_bitrix24_domain }}">
+                    </div>
+                </div>
+            </div>
+        </div>
+      </form
+    </div>
+  </div>
+</div>
+<script src="view/javascript/summernote/summernote.js"></script>
+<link href="view/javascript/summernote/summernote.css" rel="stylesheet" />
+<script src="view/javascript/summernote/lang/summernote-ru-RU.min.js"></script>
+
+<script type="text/javascript">
+    $('#input-template').summernote({
+        height: 200,
+        lang: 'ru-RU'
+    });
+
+    function toggleTemplate() {
+        if ($('#order-status').val() === '1') {  // Use strict comparison
+            $('#template-group').show();
+        } else {
+            $('#template-group').hide();
+        }
+    }
+
+    $(document).ready(function() {
+        $('#order-status').on('change', toggleTemplate);
+        toggleTemplate();  // Ensure it's called initially
+    });
+
+    $('#delete-all-logs-button').click(function(e) {
+        e.preventDefault();
+        $.ajax({
+            url: 'index.php?route=extension/module/bitrix24/clearLogs&user_token=' + '{{ user_token }}',
+            type: 'POST',
+            data: {delete_all: true},
+            success: function(response) {
+                location.reload();
+            },
+            error: function(xhr, status, error) {
+                alert('Произошла ошибка: ' + error);
+            }
+        });
+    });
+
+    $('#delete-logs-by-date-button').click(function(e) {
+        e.preventDefault();
+        var logDate = $('#log-date').val();
+        if(logDate) {
+            $.ajax({
+                url: 'index.php?route=extension/module/bitrix24/clearLogs&user_token=' + '{{ user_token }}',
+                type: 'POST',
+                data: {log_date: logDate},
+                success: function(response) {
+                    location.reload();
+                },
+                error: function(xhr, status, error) {
+                    alert('Произошла ошибка: ' + error);
+                }
+            });
+        } else {
+            alert('Пожалуйста, выберите дату.');
+        }
+    });
+    
+</script>
+
+<style>
+.form-horizontal .form-group{
+  margin-left: 0;
+  margin-right: 0;
+}
+</style>
+
+{{ footer }}
