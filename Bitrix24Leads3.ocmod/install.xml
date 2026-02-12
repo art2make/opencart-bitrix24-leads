@@ -2,7 +2,7 @@
 <modification>
     <name>Bitrix24</name>
     <code>Bitrix24Leads</code>
-    <version>2.3</version>
+    <version>2.4</version>
     <author>a2m</author>
 
     <file path="catalog/controller/common/header.php">
@@ -32,22 +32,36 @@
             <search><![CDATA[return $order_id;]]></search>
             <add position="before">
                 <![CDATA[
+				// Отправка в Bitrix24
 				if ($this->config->get('bitrix24_order_status')) {
-					$bitrix24login = $this->config->get('bitrix24_login');
+                
+					// Проверка группы покупателя
+					$exclude_group_id = $this->config->get('bitrix24_exclude_customer_group_id');
+					$send_to_bitrix24 = true;
+                
+					if ($exclude_group_id && !empty($data['customer_id'])) {
+						$this->load->model('account/customer');
+						$customer_info = $this->model_account_customer->getCustomer($data['customer_id']);
+                    
+						if ($customer_info && $customer_info['customer_group_id'] == $exclude_group_id) {
+							$send_to_bitrix24 = false;
+						}
+					}
+                
+					if ($send_to_bitrix24) {
+						$bitrix24login = $this->config->get('bitrix24_login');
+						$bitrix24password = $this->load->controller('common/header/decryptData', $this->config->get('bitrix24_password'));
+						$bitrix24domen = $this->config->get('bitrix24_domain');
 
-					$bitrix24password = $this->load->controller('common/header/decryptData', $this->config->get('bitrix24_password'));
-
-					$bitrix24domen = $this->config->get('bitrix24_domain');
-
-					$bitrix24products = "<h2>Информация о товарах:</h2><br/>";
-					foreach ($data['products'] as $product) {
-						$bitrix24option = empty($product['option']) ? "" : "<br/><br/><b>Опции:</b>";
-						$bitrix24products .= 
-						"<b>Название:</b> ".$product['name']." (<a target='_blank' href='http://".$_SERVER['HTTP_HOST']."/index.php?route=product/product&product_id=".$product['product_id']."'>Ссылка</a>)".
-						"<br/><b>Количество:</b> ".$product['quantity']." шт.".
-						"<br/><b>Цена:</b> ".$product['price']." руб.".
-						"<br/><b>Сумма:</b> ".$product['total']." руб.".
-						$bitrix24option;
+						$bitrix24products = "<h2>Информация о товарах:</h2><br/>";
+						foreach ($data['products'] as $product) {
+							$bitrix24option = empty($product['option']) ? "" : "<br/><br/><b>Опции:</b>";
+							$bitrix24products .= 
+							"<b>Название:</b> ".$product['name']." (<a target='_blank' href='http://".$_SERVER['HTTP_HOST']."/index.php?route=product/product&product_id=".$product['product_id']."'>Ссылка</a>)".
+							"<br/><b>Количество:</b> ".$product['quantity']." шт.".
+							"<br/><b>Цена:</b> ".$product['price']." руб.".
+							"<br/><b>Сумма:</b> ".$product['total']." руб.".
+							$bitrix24option;
 
 						foreach ($product['option'] as $option) {
 							if ($option['type'] == 'checkbox') {
@@ -108,6 +122,7 @@
 								  SET `message_type` = 'Заказ', 
 									  `message_data` = '" . $this->db->escape($bitrix24products . $bitrix24data) . "', 
 									  `date_sent` = NOW()");
+					}
 				}
 				]]>
             </add>
@@ -119,11 +134,21 @@
             <search><![CDATA[$mail->send();]]></search>
             <add position="after">
                 <![CDATA[
-                if ($this->config->get('bitrix24_callback_status')) {
+				if ($this->config->get('bitrix24_callback_status')) {
+                
+                // Проверка группы покупателя
+                $exclude_group_id = $this->config->get('bitrix24_exclude_customer_group_id');
+                $send_to_bitrix24 = true;
+                
+                if ($exclude_group_id && $this->customer->isLogged()) {
+                    if ($this->customer->getGroupId() == $exclude_group_id) {
+                        $send_to_bitrix24 = false;
+                    }
+                }
+                
+                if ($send_to_bitrix24) {
                     $bitrix24login = $this->config->get('bitrix24_login');
-                    
                     $bitrix24password = $this->load->controller('common/header/decryptData', $this->config->get('bitrix24_password'));
-
                     $bitrix24domen = $this->config->get('bitrix24_domain');
 
                     $bitrix24GetData = array(
@@ -149,7 +174,8 @@
                                     SET `message_type` = 'Обратный звонок', 
                                         `message_data` = '" . $this->db->escape($data['comment']) . "', 
                                         `date_sent` = NOW()");
-                }
+					}
+				}
                 ]]>
             </add>
         </operation>
@@ -161,10 +187,20 @@
             <add position="after">
                 <![CDATA[
                 if ($this->config->get('bitrix24_contacts_status')) {
+                
+                // Проверка группы покупателя
+                $exclude_group_id = $this->config->get('bitrix24_exclude_customer_group_id');
+                $send_to_bitrix24 = true;
+                
+                if ($exclude_group_id && $this->customer->isLogged()) {
+                    if ($this->customer->getGroupId() == $exclude_group_id) {
+                        $send_to_bitrix24 = false;
+                    }
+                }
+                
+                if ($send_to_bitrix24) {
                     $bitrix24login = $this->config->get('bitrix24_login');
-                    
                     $bitrix24password = $this->load->controller('common/header/decryptData', $this->config->get('bitrix24_password'));
-
                     $bitrix24domen = $this->config->get('bitrix24_domain');
 
                     $bitrix24GetData = array(
@@ -191,7 +227,8 @@
                                     SET `message_type` = 'Контактная форма', 
                                         `message_data` = '" . $this->db->escape($this->request->post['enquiry']) . "', 
                                         `date_sent` = NOW()");
-                }
+					}
+				}	
                 ]]>
             </add>
         </operation>
@@ -245,12 +282,22 @@
             <search><![CDATA[$this->model_extension_module_uni_request->addAttempt($customer_ip);]]></search>
             <add position="after">
                 <![CDATA[
-                // Отправка в Bitrix24 для всех форм uni_request
-                if ($this->config->get('bitrix24_unirequest_status')) {
+				// Отправка в Bitrix24 для всех форм uni_request
+            if ($this->config->get('bitrix24_unirequest_status')) {
+                
+                // Проверка группы покупателя
+                $exclude_group_id = $this->config->get('bitrix24_exclude_customer_group_id');
+                $send_to_bitrix24 = true;
+                
+                if ($exclude_group_id && $this->customer->isLogged()) {
+                    if ($this->customer->getGroupId() == $exclude_group_id) {
+                        $send_to_bitrix24 = false;
+                    }
+                }
+                
+                if ($send_to_bitrix24) {
                     $bitrix24login = $this->config->get('bitrix24_login');
-                    
                     $bitrix24password = $this->load->controller('common/header/decryptData', $this->config->get('bitrix24_password'));
-
                     $bitrix24domen = $this->config->get('bitrix24_domain');
                     
                     // Определение типа формы для лога
@@ -334,7 +381,8 @@
                                     SET `message_type` = '" . $this->db->escape($message_type) . "', 
                                         `message_data` = '" . $this->db->escape($comments) . "', 
                                         `date_sent` = NOW()");
-                }
+					}
+				}
                 ]]>
             </add>
         </operation>
