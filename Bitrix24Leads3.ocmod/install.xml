@@ -2,7 +2,7 @@
 <modification>
     <name>Bitrix24</name>
     <code>Bitrix24Leads</code>
-    <version>2.4</version>
+    <version>2.5</version>
     <author>a2m</author>
 
     <file path="catalog/controller/common/header.php">
@@ -336,9 +336,9 @@
                         $comments .= "<b>Комментарий:</b> " . $customer_comment . "<br/>";
                     }
                     
-                    if ($product_id && $product_name) {
-                        $comments .= "<b>Товар:</b> " . $product_name . " (ID: " . $product_id . ")<br/>";
-                    }
+                    if ($product_name) {
+						$comments .= "<b>Товар:</b> " . $product_name . ($product_id ? " (ID: " . $product_id . ")" : "") . "<br/>";
+					}
                     
                     if ($location) {
                         $comments .= "<b>Страница отправки:</b> " . $location . "<br/>";
@@ -347,7 +347,11 @@
                     $comments .= "<b>IP адрес:</b> " . $customer_ip . "<br/>";
                     
                     // Определение заголовка для лида
-                    $lead_title = $type ? $type . " - " . $this->config->get('config_name') : "Форма UniRequest - " . $this->config->get('config_name');
+                    $lead_title = $type ? $type : 'Форма UniRequest';
+					if ($product_name) {
+						$lead_title .= ' — ' . $product_name;
+					}
+					$lead_title .= ' - ' . $this->config->get('config_name');
                     
                     $bitrix24GetData = array(
                         'LOGIN' => $bitrix24login,
